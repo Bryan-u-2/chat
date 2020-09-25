@@ -1,8 +1,6 @@
 import re
 from chatterbot.storage import StorageAdapter
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-import logging
+
 
 class MongoDatabaseAdapter(StorageAdapter):
     """
@@ -42,36 +40,6 @@ class MongoDatabaseAdapter(StorageAdapter):
 
         # The mongo collection of statement documents
         self.statements = self.database['statements']
-
-        # Master file and registry related words
-        self.alt_stop_words = [
-            "master",
-            "masterfile",
-            "INI",
-            "ini",
-            "file",
-            "store",
-            "registry",
-            "reigistry",
-            "reigstry",
-            "stored",
-            "stores",
-            "mast",
-            "masterfil",
-            "fil",
-            "reg",
-            "stor",
-            "in",
-            "record",
-        ]
-
-        # Stop words
-        self.stop_words = stopwords.words('english')
-
-        # Punctuations and other characters
-        self.extra_words = [".", "?", ",", "what", "wat", "waht"]
-
-        logging.basicConfig(filename="captain_hp_bot/logs/bot.log", level=logging.INFO)
 
     def get_statement_model(self):
         """
@@ -152,26 +120,10 @@ class MongoDatabaseAdapter(StorageAdapter):
                 }
             kwargs['persona']['$not'] = re.compile('^bot:*')
 
-        self.logger.info(f"Contents of search_text_contains: {search_text_contains}")
         if search_text_contains:
-            spaced_text = search_text_contains.replace(":"," ").split()
-            # Reducing words for master file or registry related questions
-            if any(word in self.alt_stop_words for word in spaced_text):
-                # Remove any non-essential stems
-                search_text_contains_list = [word for word in search_text_contains.split() if word.split(":")[1] not in (self.alt_stop_words + self.extra_words)]
-
-                if search_text_contains_list:
-                    self.logger.info(f"Word types found in search text")
-                    or_regex = "|".join(search_text_contains_list)
-                else:
-                    self.logger.info(f"No word types leftover after processing. Using default regex")
-                    or_regex = "|".join(search_text_contains.split())
-            else:
-                or_regex = '|'.join([
-                    '{}'.format(re.escape(word)) for word in search_text_contains.split(" ")
-                ])
-
-            self.logger.info(f"Using the following regex: {or_regex}")
+            or_regex = '|'.join([
+                '{}'.format(re.escape(word)) for word in search_text_contains.split(' ')
+            ])
             kwargs['search_text'] = re.compile(or_regex)
 
         mongo_ordering = []
@@ -187,7 +139,6 @@ class MongoDatabaseAdapter(StorageAdapter):
                 mongo_ordering.append((order, pymongo.ASCENDING))
 
         total_statements = self.statements.find(kwargs).count()
-        self.logger.info(f"Regex query returned {total_statements} statements.")
 
         for start_index in range(0, total_statements, page_size):
             if mongo_ordering:
